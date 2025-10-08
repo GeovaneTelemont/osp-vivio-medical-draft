@@ -119,7 +119,7 @@ Cada execução adiciona novas linhas ao arquivo sem sobrescrever os dados anter
 
 ## 🧾 Licença
 
-Este projeto é de uso interno e educativo, sem fins comerciais.
+Este projeto é de uso exclusivo para empresa Telemont.
 
 ---
 
