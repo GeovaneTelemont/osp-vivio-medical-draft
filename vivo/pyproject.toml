@@ -1,7 +1,7 @@
 [project]
 name = "vivo"
 version = "0.1.0"
-description = ""
+description = "automação webscrap osp vivo"
 authors = [
     {name = "geovanecarvalho",email = "geovane.carvalho@telemont.com.br"}
 ]
