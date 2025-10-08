@@ -3,8 +3,9 @@
 ![Python](https://img.shields.io/badge/python-3.13+-blue.svg)
 ![Playwright](https://img.shields.io/badge/playwright-1.55+-green.svg)
 ![Pandas](https://img.shields.io/badge/pandas-2.3.3+-red.svg)
+![Poetry](https://img.shields.io/badge/Poetry-1.8+-purple.svg)
 
-Este projeto automatiza a coleta de dados do sistema **OSP Control** da Vivo, utilizando **Playwright** em modo síncrono com **Python**.  
+Este projeto automatiza a coleta de dados do sistema **OSP Control** da Vivo, utilizando **Playwright** em modo síncrono com **Python** e gerenciamento de dependências via **Poetry**.  
 O script realiza login (com suporte a CAPTCHA manual), acessa páginas específicas, extrai tabelas de medições e salva os resultados em um arquivo **CSV**.
 
 ---
@@ -30,7 +31,8 @@ O script realiza login (com suporte a CAPTCHA manual), acessa páginas específi
 ├── osp_vivo.csv            # Saída dos dados coletados
 ├── lista_csv/
 │   └── lista.csv           # Lista de IDs ou URLs a processar
-└── requirements.txt        # Dependências do projeto
+├── pyproject.toml          # Configuração do Poetry
+└── README.md               # Este arquivo
 ```
 
 ---
@@ -40,46 +42,43 @@ O script realiza login (com suporte a CAPTCHA manual), acessa páginas específi
 ### Python
 - Versão **3.9+**
 
-### Bibliotecas
-Instale as dependências com:
-
+### Poetry
+Instale o **Poetry** (se ainda não tiver):
 ```bash
-pip install playwright pandas
-```
-
-E inicialize o navegador Chromium (necessário apenas uma vez):
-
-```bash
-playwright install chromium
+pip install poetry
 ```
 
 ---
 
-## ⚙️ Configuração
+## ⚙️ Configuração do Ambiente
 
-1. **Defina as credenciais**  
+1. **Instalar dependências**  
+   Na raiz do projeto, execute:
+   ```bash
+   poetry install
+   ```
+
+2. **Inicializar o Playwright**  
+   Após instalar, baixe o navegador Chromium:
+   ```bash
+   poetry run playwright install chromium
+   ```
+
+3. **Definir credenciais**  
    No início do arquivo `main.py`, preencha as variáveis:
    ```python
    USERNAME = "seu_usuario"
    PASSWORD = "sua_senha"
    ```
 
-   > 💡 Por segurança, o script solicita que o usuário complete o CAPTCHA manualmente durante o primeiro login.
+   > 💡 O script solicitará que você complete o CAPTCHA manualmente no primeiro login.
 
-2. **Prepare o arquivo de entrada**  
-   No diretório `lista_csv`, crie um arquivo chamado `lista.csv` com o seguinte formato:
-   ```csv
-   ID;OSP MEDIDO;url
-   12345;PB Classe A;https://devopsredes.vivo.com.br/ospcontrol/requisicoes-eps?id=12345
-   67890;PB Classe B;https://devopsredes.vivo.com.br/ospcontrol/requisicoes-eps?id=67890
-   ```
-
-3. **Execute o script**
+4. **Executar o script**
    ```bash
-   python main.py
+   poetry run python main.py
    ```
 
-4. **Após o login manual**, o script:
+5. **Após o login manual**, o script:
    - Detecta a autenticação,
    - Salva a sessão em `auth.json`,
    - E continua automaticamente o processamento dos IDs da lista.
@@ -127,4 +126,4 @@ Este projeto é de uso interno e educativo, sem fins comerciais.
 ## 👨‍💻 Autor
 
 **GeovaneTelemont**  
-Automação de processos com Python + Playwright
+Automação de processos com Python + Playwright + Poetry
