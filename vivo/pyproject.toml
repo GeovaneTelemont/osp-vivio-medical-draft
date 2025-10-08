@@ -1,0 +1,21 @@
+[project]
+name = "vivo"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "geovanecarvalho",email = "geovane.carvalho@telemont.com.br"}
+]
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "pandas (>=2.3.3,<3.0.0)",
+    "playwright (>=1.55.0,<2.0.0)"
+]
+
+[tool.poetry]
+packages = [{include = "vivo", from = "src"}]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
