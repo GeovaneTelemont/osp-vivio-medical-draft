@@ -7,8 +7,8 @@ from time import sleep
 AUTH_FILE = "auth.json"
 LOGIN_URL = "https://devopsredes.vivo.com.br/ospcontrol/home"
 LOGGED_SELECTOR = 'xpath=//*[@id="ott-username"]' 
-USERNAME = "80969154"  # 🔒 Preencha ou use input()
-PASSWORD = "Ca0109le@"  # 🔒 Preencha ou use input()
+USERNAME = ""  # 🔒 Preencha ou use input()
+PASSWORD = ""  # 🔒 Preencha ou use input()
 
 
 def read_csv_id():
@@ -182,14 +182,16 @@ def main():
             id_value = row["ID"]
             osp_value = row["OSP MEDIDO"]
             dados = pesquisar_id(page, id_value)
-            
             colunas = ["ID","CODIGO", "DESCRIÇÃO DOS SERVIÇOS", "QUANTIDADE", "PREÇO UNITÁRIO", "UNIDADE", "PREÇO TOTAL"]
+            arquivo = "osp_vivo.csv"
             df = pd.DataFrame(dados, columns=colunas)
-            df.to_csv("osp_vivo.csv", mode="a", index=False, header=False, encoding="utf-8")
-            
-        # input("Pressione Enter para fechar...")
-        #context.close()
-        #browser.close()
+
+            if not os.path.isfile(arquivo):
+                # se o arquivo não existir cria cabeçalho
+                df.to_csv("osp_vivo.csv", mode="w", index=False, header=True, encoding="utf-8")
+            else:
+                # se o arquivo existir continuar cadastrando os dados sem cabeçalho
+                df.to_csv("osp_vivo.csv", mode="a", index=False, header=False, encoding="utf-8")
 
 
 if __name__ == "__main__":
