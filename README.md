@@ -33,6 +33,7 @@ O script realiza login (com suporte a CAPTCHA manual), acessa páginas específi
 │   └── lista.csv           # Lista de IDs ou URLs a processar
 ├── pyproject.toml          # Configuração do Poetry
 └── README.md               # Este arquivo
+
 ```
 
 ---
