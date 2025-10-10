@@ -1,8 +1,10 @@
 from playwright.sync_api import sync_playwright, TimeoutError
-import os, csv, unicodedata
+import os, unicodedata, shutil
 import pandas as pd
 from time import sleep
-
+from tkinter import filedialog
+from tkinter import Tk
+from pathlib import Path
 
 AUTH_FILE = "auth.json"
 LOGIN_URL = "https://devopsredes.vivo.com.br/ospcontrol/home"
@@ -357,26 +359,66 @@ def main(number):
         if number == 2:
             print("Salvando os dados de Medição")
             webscraping(page, df, pesquisar_id_medicao, "osp_vivo_medicao.csv")
-            
+
+
+def open_dialog_csv():
+    base_dir = Path(__file__).resolve().parent
+    pasta_csv = base_dir / "lista_csv"
+    pasta_csv.mkdir(parents=True, exist_ok=True)
+
+    root = Tk()
+    root.withdraw()
+
+    # Usuário escolhe um arquivo existente (para copiar)
+    file_path = filedialog.askopenfilename(
+        title="Selecione o arquivo CSV",
+        filetypes=(("Arquivos de planilha", "*.csv"),)
+    )
+
+    root.destroy()
+
+    if not file_path:
+        print("❌ Operação cancelada!")
+        return False
+
+    destino = pasta_csv / "lista.csv"
+
+    # Copia o arquivo selecionado para dentro da pasta lista_csv
+    shutil.copy(file_path, destino)
+    print(f"✅ Upload realizado com")
+
+    return destino
+
+def run():
+    resultado = open_dialog_csv()
+    
+    if resultado:
+
+        while True:
+            number = input("Digite (1) para Draft ou Ditite (2) para Medição ou (0) para sair: ")
+            try:
+                if int(number) == 0:
+                    print("❌ Programa finalizado!")
+                    break
+
+                elif int(number) == 1:
+                    print("------------ ⏱ Iniciando busca de dados Draft! ------------")
+                    main(int(number))
+                    break
+                
+                elif int(number) == 2:
+                    print("-------------- ⏱ Iniciando busca de dados Medição! -------------")
+                    main(int(number))
+                    break
+                else:
+                    continue
+            except:
+                continue
+    else:
+        print("❌ Programa finalizado!")
+
 
 if __name__ == "__main__":
-    while True:
-        number = input("Digite (1) para Draft ou Ditite (2) para Medição ou (0) para sair: ")
-        try:
-            if int(number) == 0:
-                print("Sistema desligado!")
-                break
-
-            elif int(number) == 1:
-                main(int(number))
-                break
-            
-            elif int(number) == 2:
-                main(int(number))
-                break
-            else:
-                continue
-        except:
-            continue
+    run()
         
         

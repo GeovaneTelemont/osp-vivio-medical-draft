@@ -1,9 +1,9 @@
 # 🧠 Automação OSP Vivo (Playwright + Python)
 
-![Python](https://img.shields.io/badge/python-3.13+-blue.svg)
-![Playwright](https://img.shields.io/badge/playwright-1.55+-green.svg)
-![Pandas](https://img.shields.io/badge/pandas-2.3.3+-red.svg)
-![Poetry](https://img.shields.io/badge/Poetry-1.8+-purple.svg)
+[![Python](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/)
+[![Playwright](https://img.shields.io/badge/playwright-1.55+-green.svg)](https://playwright.dev/docs/intro)
+[![Pandas](https://img.shields.io/badge/pandas-2.3.3+-red.svg)](https://pandas.pydata.org/docs/)
+[![Poetry](https://img.shields.io/badge/Poetry-1.8+-purple.svg)](https://python-poetry.org/)
 
 Este projeto automatiza a coleta de dados do sistema **OSP Control** da Vivo, utilizando **Playwright** em modo síncrono com **Python** e gerenciamento de dependências via **Poetry**.  
 O script realiza login (com suporte a CAPTCHA manual), acessa páginas específicas, extrai tabelas de medições e salva os resultados em um arquivo **CSV**.
