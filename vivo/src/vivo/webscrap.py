@@ -9,8 +9,8 @@ from pathlib import Path
 AUTH_FILE = "auth.json"
 LOGIN_URL = "https://devopsredes.vivo.com.br/ospcontrol/home"
 LOGGED_SELECTOR = 'xpath=//*[@id="ott-username"]' 
-USERNAME = "80969154"  # 🔒 Preencha ou use input()
-PASSWORD = "Ca0109le@"  # 🔒 Preencha ou use input()
+USERNAME = ""  # 🔒 Preencha ou use input()
+PASSWORD = ""  # 🔒 Preencha ou use input()
 
 
 def read_csv_id():
