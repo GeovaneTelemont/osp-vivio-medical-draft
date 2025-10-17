@@ -9,8 +9,8 @@ from pathlib import Path
 AUTH_FILE = "auth.json"
 LOGIN_URL = "https://devopsredes.vivo.com.br/ospcontrol/home"
 LOGGED_SELECTOR = 'xpath=//*[@id="ott-username"]' 
-USERNAME = ""  # 🔒 Preencha ou use input()
-PASSWORD = ""  # 🔒 Preencha ou use input()
+USERNAME = "80969154"  # 🔒 Preencha ou use input()
+PASSWORD = "Ca0109le@"  # 🔒 Preencha ou use input()
 
 
 def read_csv_id():
@@ -55,6 +55,72 @@ def _normalize_text(s: str) -> str:
     # remover acentos e lower
     s_norm = unicodedata.normalize("NFKD", s).encode("ASCII", "ignore").decode("ASCII").lower()
     return s_norm
+
+
+def pesquisar_id(page, id):
+    print(f"🔍 Pesquisando ID: {id}")
+    try:
+        # Converte o ID para inteiro (remove .0)
+        id_int = int(float(id))
+        
+        sleep(2)
+        page.click('//*[@id="ott-sidebar-collapse"]', timeout=10000)
+        sleep(2)
+        page.click('//*[@id="ott-sidebar"]/div[3]/ul/li[3]/a', timeout=10000)
+        sleep(2)
+        page.fill('xpath=//*[@id="filtroId"]', str(id_int))
+        sleep(2)
+        page.locator("a.btn.btn-primary.btn-sm.btn-block:has-text('Buscar')").click()
+        sleep(2)
+        page.locator("span.badge.bg-primary:has-text('Editar')").click()
+        sleep(2)
+
+        links = page.locator("a.nav-link")
+        total = int(links.count())
+        for i in range(total):
+            texto = links.nth(i).text_content().strip()
+            if texto == "Medição":
+                links.nth(i).click()
+                break
+
+        sleep(3)
+        
+        # --- VERIFICA SE O BOTÃO "SERVIÇOS" EXISTE ANTES DE CLICAR ---
+        servicos_btn = page.locator('a[title="Serviços"]')
+        
+        if servicos_btn.count() == 0:
+            print(f"❌ Botão 'Serviços' não encontrado para ID {id_int}")
+            return [id_int, "ERRO", "Botão serviço não encontrado"]
+        
+        # Se existe, clica no botão
+        servicos_btn.click()
+        sleep(3)
+        
+        # --- EXTRAI CONTRATO ---
+        contrato = page.locator('xpath=/html/body/app-root/app-requisicoes-servicos/div/div/div/div/div[2]/div[2]/div/div/div[2]/div[2]/span').text_content().strip()
+        
+        sleep(3)
+        
+        # --- EXTRAI OSP COM TRATAMENTO DE ERRO ---
+        osp_locator = page.locator('xpath=/html/body/app-root/app-requisicoes-servicos/div/div/div/div/div[2]/div[3]/div/div[2]/div/strong')
+        
+        if osp_locator.count() == 0:
+            print(f"⚠️  Campo OSP não encontrado para ID {id_int}")
+            osp = ""
+        else:
+            osp = osp_locator.text_content().strip()
+            if not osp:  # Se estiver vazio
+                osp = ""
+                print(f"⚠️  Campo OSP vazio para ID {id_int}")
+        
+        print(f"✅ ID {id_int}: Contrato='{contrato}', OSP='{osp} OSP'")
+        
+        return [id_int, contrato, osp + " OSP"]
+
+    except Exception as e:
+        print(f"❌ Erro geral ao pesquisar ID {id}: {e}")
+        id_int = int(float(id)) if id else 0
+        return [id_int, "ERRO", f"Erro geral: {str(e)}"]
 
 def pesquisar_id_draft(page, id):
     try:
@@ -171,6 +237,8 @@ def pesquisar_id_draft(page, id):
         sleep(2)
         print(f"✅ ID: {id} - extração finalizada. Linhas: {len(todos_dados)}")
 
+
+        print(todos_dados)
         return todos_dados
 
     except Exception as e:
@@ -298,10 +366,46 @@ def pesquisar_id_medicao(page, id):
         print(f"Erro ao pesquisar ID {id}: {e}")
         return None
 
+def webscraping_id(page, df, func_pesquisa, name_file_csv):
+    print("🔄 Iniciando webscraping para pesquisa de ID...")
+    
+    colunas = ["ID", "CONTRATO", "OSP"]
+    arquivo = name_file_csv
+    
+    # Cria arquivo com cabeçalho se não existir
+    if not os.path.isfile(arquivo):
+        pd.DataFrame(columns=colunas).to_csv(arquivo, mode="w", index=False, header=True, encoding="utf-8")
+        print(f"✅ Arquivo {arquivo} criado com cabeçalho")
+    
+    for index, row in df.iterrows():
+        id_value = int(row["ID"])
+        print(f"📋 Processando ID: {id_value}")
+        
+        try:
+            dados = func_pesquisa(page, id_value)
+            
+            if dados:
+                # Cria DataFrame com uma linha
+                df_linha = pd.DataFrame([dados], columns=colunas)
+                
+                # Salva a linha no CSV
+                df_linha.to_csv(arquivo, mode="a", index=False, header=False, encoding="utf-8")
+                print(f"✅ ID {id_value} salvo no CSV - Contrato: {dados[1]}, OSP: {dados[2]}")
+            else:
+                print(f"⚠️  Nenhum dado retornado para ID {id_value}")
+                
+        except Exception as e:
+            print(f"❌ Erro ao processar ID {id_value}: {e}")
+            # Salva linha de erro para não perder o ID
+            dados_erro = [id_value, "ERRO", "ERRO"]
+            df_erro = pd.DataFrame([dados_erro], columns=colunas)
+            df_erro.to_csv(arquivo, mode="a", index=False, header=False, encoding="utf-8")
+            print(f"✅ ID {id_value} marcado como ERRO no CSV")
+
 
 def webscraping(page, df, func_pesquisa, name_file_csv):
     for index, row in df.iterrows():
-        id_value = row["ID"]
+        id_value = int(row["ID"])
         osp_value = row["OSP MEDIDO"]
         dados = func_pesquisa(page, id_value)
         colunas = ["ID", "TIPO DE REGISTRO", "CÓDIGO", "DESCRIÇÃO", "QUANTIDADE", "PREÇO UNITÁRIO", "UNIDADE","PREÇO TOTAL", "CATEGORIA"]
@@ -311,6 +415,8 @@ def webscraping(page, df, func_pesquisa, name_file_csv):
         if not os.path.isfile(arquivo):
             # se o arquivo não existir cria cabeçalho
             df.to_csv(name_file_csv, mode="w", index=False, header=True, encoding="utf-8")
+            
+            
         else:
             # se o arquivo existir continuar cadastrando os dados sem cabeçalho
             df.to_csv(name_file_csv, mode="a", index=False, header=False, encoding="utf-8")
@@ -351,7 +457,9 @@ def main(number):
         # --- Ações após login ---
         print("Lendo CSV...")
         df = read_csv_id()
-   
+
+
+        print(df)
         if number == 1:
             print("Salvando os dados de Draft")
             webscraping(page, df, pesquisar_id_draft, "osp_vivo_draft.csv")
@@ -359,6 +467,10 @@ def main(number):
         if number == 2:
             print("Salvando os dados de Medição")
             webscraping(page, df, pesquisar_id_medicao, "osp_vivo_medicao.csv")
+
+        if number == 3:
+            print("Salvando os dados ID OSP")
+            webscraping_id(page, df, pesquisar_id, "osp_id.csv")
 
 
 def open_dialog_csv():
@@ -410,6 +522,12 @@ def run():
                     print("-------------- ⏱ Iniciando busca de dados Medição! -------------")
                     main(int(number))
                     break
+
+                elif int(number) == 3:
+                    print("-------------- ⏱ Iniciando busca de id OSP! -------------")
+                    main(int(number))
+                    break
+
                 else:
                     continue
             except:
