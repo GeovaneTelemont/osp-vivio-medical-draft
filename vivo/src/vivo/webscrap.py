@@ -1,17 +1,37 @@
+import subprocess
+import sys
+
+# --- Verifica se Playwright está instalado, se não instala automaticamente ---
+try:
+    from playwright.sync_api import sync_playwright, TimeoutError
+except ImportError:
+    print("📦 Playwright não encontrado. Instalando automaticamente...")
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "playwright"])
+    print("✅ Playwright instalado. Instalando navegadores...")
+    subprocess.check_call([sys.executable, "-m", "playwright", "install"])
+    print("✅ Navegadores Playwright instalados.")
+    from playwright.sync_api import sync_playwright, TimeoutError
+
+
+
 from playwright.sync_api import sync_playwright, TimeoutError
 import os, unicodedata, shutil
 import pandas as pd
 from time import sleep
-from tkinter import filedialog
-from tkinter import Tk
+from tkinter import filedialog, Tk
 from pathlib import Path
 
 AUTH_FILE = "auth.json"
 LOGIN_URL = "https://devopsredes.vivo.com.br/ospcontrol/home"
 LOGGED_SELECTOR = 'xpath=//*[@id="ott-username"]' 
-USERNAME = "80969154"  # 🔒 Preencha ou use input()
-PASSWORD = "Ca0109le@"  # 🔒 Preencha ou use input()
+USERNAME = ""  # 🔒 Preencha ou use input()
+PASSWORD = ""  # 🔒 Preencha ou use input()
+DOWNLOAD_PATH = Path.home() / "Downloads"
 
+
+# ===========================================================
+# 📁 FUNÇÕES AUXILIARES
+# ===========================================================
 
 def read_csv_id():
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -19,6 +39,28 @@ def read_csv_id():
     df = pd.read_csv(csv_path, sep=";", encoding="utf-8")
     return df
 
+
+def _normalize_text(s: str) -> str:
+    if not s:
+        return ""
+    s = " ".join(s.split())
+    s_norm = unicodedata.normalize("NFKD", s).encode("ASCII", "ignore").decode("ASCII").lower()
+    return s_norm
+
+
+def salvar_incremental(resultados, colunas, arquivo):
+    """Salva incrementalmente e garante integridade do Excel"""
+    try:
+        df_parcial = pd.DataFrame(resultados, columns=colunas)
+        df_parcial.to_excel(arquivo, index=False)
+        print(f"💾 Progresso salvo ({len(resultados)} registros)")
+    except Exception as e:
+        print(f"⚠️ Erro ao salvar arquivo: {e}")
+
+
+# ===========================================================
+# 🔐 LOGIN E SESSÃO
+# ===========================================================
 
 def login(page):
     """Preenche usuário e senha, espera login manual (CAPTCHA)."""
@@ -28,16 +70,14 @@ def login(page):
         page.fill('//*[@id="username"]', USERNAME)
         page.fill('//*[@id="password"]', PASSWORD)
         print("✅ Usuário e senha preenchidos. Complete o CAPTCHA e clique em login manualmente...")
-        
-        # Aguarda até que o seletor de login bem-sucedido apareça
+
         page.wait_for_selector(LOGGED_SELECTOR, timeout=60000, state="visible")
         print("✅ Login detectado! Continuando automação...")
-        
+
     except TimeoutError:
         print("❌ Campos de login não encontrados — talvez já esteja logado.")
     except Exception as e:
         print("Erro ao tentar logar:", e)
-
 
 
 def is_logged(page):
@@ -48,16 +88,13 @@ def is_logged(page):
     except:
         return False
 
-def _normalize_text(s: str) -> str:
-    if not s:
-        return ""
-    s = " ".join(s.split())  # colapsar espaços
-    # remover acentos e lower
-    s_norm = unicodedata.normalize("NFKD", s).encode("ASCII", "ignore").decode("ASCII").lower()
-    return s_norm
+"""
+    Funções para fazer pesquisa na pagina
+"""
 
 
 def pesquisar_id(page, id):
+    """Pesquisa um ID no OSP Control, abre Medição e retorna [ID, Contrato, OSP]."""
     print(f"🔍 Pesquisando ID: {id}")
     try:
         # Converte o ID para inteiro (remove .0)
@@ -75,6 +112,7 @@ def pesquisar_id(page, id):
         page.locator("span.badge.bg-primary:has-text('Editar')").click()
         sleep(2)
 
+        # Navega até aba "Medição"
         links = page.locator("a.nav-link")
         total = int(links.count())
         for i in range(total):
@@ -85,36 +123,28 @@ def pesquisar_id(page, id):
 
         sleep(3)
         
-        # --- VERIFICA SE O BOTÃO "SERVIÇOS" EXISTE ANTES DE CLICAR ---
+        # Verifica botão Serviços
         servicos_btn = page.locator('a[title="Serviços"]')
-        
         if servicos_btn.count() == 0:
             print(f"❌ Botão 'Serviços' não encontrado para ID {id_int}")
             return [id_int, "ERRO", "Botão serviço não encontrado"]
         
-        # Se existe, clica no botão
         servicos_btn.click()
         sleep(3)
         
-        # --- EXTRAI CONTRATO ---
-        contrato = page.locator('xpath=/html/body/app-root/app-requisicoes-servicos/div/div/div/div/div[2]/div[2]/div/div/div[2]/div[2]/span').text_content().strip()
+        # Extrai Contrato
+        contrato = page.locator(
+            'xpath=/html/body/app-root/app-requisicoes-servicos/div/div/div/div/div[2]/div[2]/div/div/div[2]/div[2]/span'
+        ).text_content().strip()
+        sleep(2)
         
-        sleep(3)
-        
-        # --- EXTRAI OSP COM TRATAMENTO DE ERRO ---
-        osp_locator = page.locator('xpath=/html/body/app-root/app-requisicoes-servicos/div/div/div/div/div[2]/div[3]/div/div[2]/div/strong')
-        
-        if osp_locator.count() == 0:
-            print(f"⚠️  Campo OSP não encontrado para ID {id_int}")
-            osp = ""
-        else:
-            osp = osp_locator.text_content().strip()
-            if not osp:  # Se estiver vazio
-                osp = ""
-                print(f"⚠️  Campo OSP vazio para ID {id_int}")
+        # Extrai OSP (com verificação)
+        osp_locator = page.locator(
+            'xpath=/html/body/app-root/app-requisicoes-servicos/div/div/div/div/div[2]/div[3]/div/div[2]/div/strong'
+        )
+        osp = osp_locator.text_content().strip() if osp_locator.count() > 0 else ""
         
         print(f"✅ ID {id_int}: Contrato='{contrato}', OSP='{osp} OSP'")
-        
         return [id_int, contrato, osp + " OSP"]
 
     except Exception as e:
@@ -366,69 +396,101 @@ def pesquisar_id_medicao(page, id):
         print(f"Erro ao pesquisar ID {id}: {e}")
         return None
 
-def webscraping_id(page, df, func_pesquisa, name_file_csv):
+# ===========================================================
+# 🔍 FUNÇÕES DE PESQUISA (mantidas iguais)
+# ===========================================================
+
+# pesquisar_id, pesquisar_id_draft, pesquisar_id_medicao
+# (mantidas conforme o seu código original)
+# ... [essas não mudam nada além de chamadas internas]
+
+
+# ===========================================================
+# 🧭 FUNÇÕES DE WEBSCRAPING (melhoradas)
+# ===========================================================
+
+def webscraping_id(page, df, func_pesquisa, name_file_xlsx):
+    """Webscraping para ID Cancelados"""
     print("🔄 Iniciando webscraping para pesquisa de ID...")
-    
+
+    arquivo = DOWNLOAD_PATH / name_file_xlsx
     colunas = ["ID", "CONTRATO", "OSP"]
-    arquivo = name_file_csv
-    
-    # Cria arquivo com cabeçalho se não existir
-    if not os.path.isfile(arquivo):
-        pd.DataFrame(columns=colunas).to_csv(arquivo, mode="w", index=False, header=True, encoding="utf-8")
-        print(f"✅ Arquivo {arquivo} criado com cabeçalho")
-    
+    resultados = []
+
     for index, row in df.iterrows():
         id_value = int(row["ID"])
         print(f"📋 Processando ID: {id_value}")
-        
+
         try:
             dados = func_pesquisa(page, id_value)
-            
             if dados:
-                # Cria DataFrame com uma linha
-                df_linha = pd.DataFrame([dados], columns=colunas)
-                
-                # Salva a linha no CSV
-                df_linha.to_csv(arquivo, mode="a", index=False, header=False, encoding="utf-8")
-                print(f"✅ ID {id_value} salvo no CSV - Contrato: {dados[1]}, OSP: {dados[2]}")
+                resultados.append(dados)
             else:
-                print(f"⚠️  Nenhum dado retornado para ID {id_value}")
-                
+                resultados.append([id_value, "ERRO", "Nenhum dado retornado"])
         except Exception as e:
-            print(f"❌ Erro ao processar ID {id_value}: {e}")
-            # Salva linha de erro para não perder o ID
-            dados_erro = [id_value, "ERRO", "ERRO"]
-            df_erro = pd.DataFrame([dados_erro], columns=colunas)
-            df_erro.to_csv(arquivo, mode="a", index=False, header=False, encoding="utf-8")
-            print(f"✅ ID {id_value} marcado como ERRO no CSV")
+            resultados.append([id_value, "ERRO", str(e)])
+
+        # 💾 salvamento incremental robusto
+        salvar_incremental(resultados, colunas, arquivo)
+
+    print(f"✅ Arquivo final salvo em: {arquivo}")
+
+    # 🚀 abre a pasta com o arquivo selecionado
+    try:
+        os.startfile(arquivo)
+        print("📂 Pasta Downloads aberta com o arquivo selecionado.")
+    except Exception as e:
+        print(f"⚠️ Não foi possível abrir automaticamente: {e}")
 
 
-def webscraping(page, df, func_pesquisa, name_file_csv):
+def webscraping(page, df, func_pesquisa, name_file_xlsx):
+    """Webscraping para Draft e Medição"""
+    print("🔄 Iniciando webscraping geral (Draft/Medição)...")
+
+    arquivo = DOWNLOAD_PATH / name_file_xlsx
+    colunas = [
+        "ID", "TIPO DE REGISTRO", "CÓDIGO", "DESCRIÇÃO",
+        "QUANTIDADE", "PREÇO UNITÁRIO", "UNIDADE", "PREÇO TOTAL", "CATEGORIA"
+    ]
+
+    resultados = []
+
     for index, row in df.iterrows():
         id_value = int(row["ID"])
-        osp_value = row["OSP MEDIDO"]
-        dados = func_pesquisa(page, id_value)
-        colunas = ["ID", "TIPO DE REGISTRO", "CÓDIGO", "DESCRIÇÃO", "QUANTIDADE", "PREÇO UNITÁRIO", "UNIDADE","PREÇO TOTAL", "CATEGORIA"]
-        arquivo = name_file_csv
-        df = pd.DataFrame(dados, columns=colunas)
+        print(f"📋 Processando ID: {id_value}")
 
-        if not os.path.isfile(arquivo):
-            # se o arquivo não existir cria cabeçalho
-            df.to_csv(name_file_csv, mode="w", index=False, header=True, encoding="utf-8")
-            
-            
-        else:
-            # se o arquivo existir continuar cadastrando os dados sem cabeçalho
-            df.to_csv(name_file_csv, mode="a", index=False, header=False, encoding="utf-8")
+        try:
+            dados = func_pesquisa(page, id_value)
+            if dados:
+                resultados.extend(dados)
+                print(f"✅ ID {id_value} extraído ({len(dados)} linhas).")
+            else:
+                print(f"⚠️ Nenhum dado retornado para ID {id_value}")
+        except Exception as e:
+            print(f"❌ Erro ao processar ID {id_value}: {e}")
 
-        
+        # 💾 salvamento incremental
+        salvar_incremental(resultados, colunas, arquivo)
+
+    print(f"✅ Arquivo final salvo em:\n📁 {arquivo}")
+
+    # 🚀 abre a pasta com o arquivo selecionado
+    try:
+        os.startfile(arquivo)
+        print("📂 Pasta Downloads aberta com o arquivo selecionado.")
+    except Exception as e:
+        print(f"⚠️ Não foi possível abrir automaticamente: {e}")
+
+
+# ===========================================================
+# 🧠 MAIN E EXECUÇÃO (mantidos, com prints aprimorados)
+# ===========================================================
+
 def main(number):
     with sync_playwright() as p:
-        # --- Browser ---
         print("Iniciando navegador...")
         browser = p.chromium.launch(channel="chrome", headless=False, args=["--ignore-certificate-errors"])
 
-        # --- Cria ou carrega sessão ---
         if os.path.exists(AUTH_FILE):
             print("Carregando sessão existente de", AUTH_FILE)
             context = browser.new_context(storage_state=AUTH_FILE)
@@ -440,7 +502,6 @@ def main(number):
         page.goto(LOGIN_URL, wait_until="networkidle")
         print("✅ Página carregada.")
 
-        # --- Verifica se está logado ---
         if not is_logged(page):
             print("🔐 Sessão expirada ou inexistente. Tentando logar novamente.")
             login(page)
@@ -454,23 +515,20 @@ def main(number):
         else:
             print("✅ Já está logado!")
 
-        # --- Ações após login ---
         print("Lendo CSV...")
         df = read_csv_id()
 
-
-        print(df)
         if number == 1:
-            print("Salvando os dados de Draft")
-            webscraping(page, df, pesquisar_id_draft, "osp_vivo_draft.csv")
+            print("🧾 Salvando os dados de Draft...")
+            webscraping(page, df, pesquisar_id_draft, "osp_vivo_draft.xlsx")
 
-        if number == 2:
-            print("Salvando os dados de Medição")
-            webscraping(page, df, pesquisar_id_medicao, "osp_vivo_medicao.csv")
+        elif number == 2:
+            print("📊 Salvando os dados de Medição...")
+            webscraping(page, df, pesquisar_id_medicao, "osp_vivo_medicao.xlsx")
 
-        if number == 3:
-            print("Salvando os dados ID OSP")
-            webscraping_id(page, df, pesquisar_id, "osp_id.csv")
+        elif number == 3:
+            print("🔎 Salvando os dados ID OSP...")
+            webscraping_id(page, df, pesquisar_id, "osp_id_cancelado.xlsx")
 
 
 def open_dialog_csv():
@@ -481,12 +539,10 @@ def open_dialog_csv():
     root = Tk()
     root.withdraw()
 
-    # Usuário escolhe um arquivo existente (para copiar)
     file_path = filedialog.askopenfilename(
         title="Selecione o arquivo CSV",
         filetypes=(("Arquivos de planilha", "*.csv"),)
     )
-
     root.destroy()
 
     if not file_path:
@@ -494,43 +550,35 @@ def open_dialog_csv():
         return False
 
     destino = pasta_csv / "lista.csv"
-
-    # Copia o arquivo selecionado para dentro da pasta lista_csv
     shutil.copy(file_path, destino)
-    print(f"✅ Upload realizado com")
-
+    print(f"✅ Upload realizado com sucesso para {destino}")
     return destino
+
 
 def run():
     resultado = open_dialog_csv()
-    
-    if resultado:
 
+    if resultado:
         while True:
-            number = input("Digite (1) para Draft ou Ditite (2) para Medição ou (0) para sair: ")
+            number = input(
+                "Digite (1) para Draft | (2) para Medição | (3) para ID Cancelados | (0) para sair: "
+            )
             try:
-                if int(number) == 0:
+                number = int(number)
+                if number == 0:
                     print("❌ Programa finalizado!")
                     break
 
-                elif int(number) == 1:
-                    print("------------ ⏱ Iniciando busca de dados Draft! ------------")
-                    main(int(number))
-                    break
-                
-                elif int(number) == 2:
-                    print("-------------- ⏱ Iniciando busca de dados Medição! -------------")
-                    main(int(number))
-                    break
-
-                elif int(number) == 3:
-                    print("-------------- ⏱ Iniciando busca de id OSP! -------------")
-                    main(int(number))
+                elif number in (1, 2, 3):
+                    print(f"-------------- ⏱ Iniciando busca tipo {number} -------------")
+                    main(number)
                     break
 
                 else:
+                    print("⚠️ Opção inválida.")
                     continue
-            except:
+            except ValueError:
+                print("⚠️ Entrada inválida, digite um número.")
                 continue
     else:
         print("❌ Programa finalizado!")
@@ -538,5 +586,3 @@ def run():
 
 if __name__ == "__main__":
     run()
-        
-        
